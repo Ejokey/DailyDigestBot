@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1200" height="360" viewBox="0 0 1200 360"
+     role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">Daily Digest Bot</title>
+  <desc id="hero-desc">Telegram-бот на TypeScript: свободный текст утром становится списком задач, а вечером бот сверяет план с тем, что реально сделано.</desc>
+
+  <rect width="1200" height="360" rx="26" fill="#0d1117"/>
+
+  <g id="title-block" fill="#e6edf3" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="56" y="56" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="14" letter-spacing="2" fill="#6b7280">БОТ ДЛЯ TELEGRAM · TYPESCRIPT</text>
+
+    <text x="56" y="120" font-size="50" font-weight="700">Daily Digest Bot</text>
+
+    <g font-size="19" fill="#c9d1d9">
+      <text x="56" y="162">Пишешь план на день своими словами.</text>
+      <text x="56" y="190">Бот раскладывает его на задачи,</text>
+      <text x="56" y="218">а вечером спрашивает, что реально сделано.</text>
+    </g>
+
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">
+      <rect x="56" y="256" width="230" height="30" rx="15" fill="#161b22" stroke="#30363d"/>
+      <text x="70" y="276" fill="#c9d1d9">Groq · Ollama · Anthropic</text>
+
+      <rect x="298" y="256" width="88" height="30" rx="15" fill="#161b22" stroke="#30363d"/>
+      <text x="312" y="276" fill="#c9d1d9">SQLite</text>
+
+      <rect x="398" y="256" width="98" height="30" rx="15" fill="#161b22" stroke="#30363d"/>
+      <text x="412" y="276" fill="#c9d1d9">Telegraf</text>
+    </g>
+
+    <text x="56" y="330" font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+          font-size="14" fill="#6b7280">Node.js ≥22 · node:sqlite · long polling</text>
+  </g>
+
+  <g id="chat-proof" transform="translate(680 40)">
+    <rect width="464" height="280" rx="18" fill="#161b22" stroke="#21262d"/>
+
+    <rect x="20" y="20" width="300" height="44" rx="14" fill="#1c2530" stroke="#2b3542"/>
+    <text x="36" y="47" font-size="16" fill="#e6edf3"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Вечерний чек-ин! Что сделал?</text>
+
+    <rect x="144" y="80" width="300" height="44" rx="14" fill="#1f6feb"/>
+    <text x="160" y="107" font-size="16" fill="#ffffff"
+          font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">лендинг закрыл, CRM не успел</text>
+
+    <rect x="20" y="140" width="340" height="112" rx="14" fill="#1c2530" stroke="#2b3542"/>
+    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#e6edf3">
+      <text x="36" y="168">✅ Лендинг — done</text>
+      <text x="36" y="194">✅ Созвон — done</text>
+      <text x="36" y="220">⏳ Правки CRM — перенесено</text>
+    </g>
+
+    <text x="20" y="270" font-size="13" fill="#6b7280"
+          font-family="ui-monospace, SFMono-Regular, Menlo, monospace">реальный пример из логов бота</text>
+  </g>
+</svg>
