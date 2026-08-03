@@ -71,9 +71,14 @@ export function handleListCommand(userId: number, date: string): string {
   return formatTaskList(getVisibleTasks(userId, date));
 }
 
-/** Same tasks /list renders — exposed so the bot layer can build per-task inline buttons. */
+/**
+ * Same tasks /list renders, flattened in the exact category-grouped order the
+ * numbered text uses — so inline button row N lines up with printed line N.
+ * (Returning insertion order instead was the earlier bug: buttons and numbers
+ * only matched by coincidence whenever a user had a single category.)
+ */
 export function getTasksForListView(userId: number, date: string): Task[] {
-  return getVisibleTasks(userId, date);
+  return groupTasksByCategory(getVisibleTasks(userId, date)).flatMap((group) => group.tasks);
 }
 
 export function buildEveningPingMessage(tasks: Task[]): string {

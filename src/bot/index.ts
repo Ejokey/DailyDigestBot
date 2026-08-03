@@ -54,11 +54,14 @@ const ACTION_LABEL: Record<'d' | 'm' | 'x', { status: 'done' | 'moved' | 'droppe
 };
 
 function buildTaskListKeyboard(tasks: Task[]) {
-  const rows = tasks.map((t) => [
-    Markup.button.callback('✅', `d:${t.id}`),
-    Markup.button.callback('⏳', `m:${t.id}`),
-    Markup.button.callback('❌', `x:${t.id}`),
-  ]);
+  const rows = tasks.map((t, i) => {
+    const n = i + 1;
+    return [
+      Markup.button.callback(`${n} ✅`, `d:${t.id}`),
+      Markup.button.callback(`${n} ⏳`, `m:${t.id}`),
+      Markup.button.callback(`${n} ❌`, `x:${t.id}`),
+    ];
+  });
   return Markup.inlineKeyboard(rows);
 }
 
