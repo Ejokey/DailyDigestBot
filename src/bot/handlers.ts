@@ -13,8 +13,11 @@ import {
   insertReminder,
   getPendingRemindersForUser,
   deleteReminder,
+  insertBacklogItem,
+  getBacklogForUser,
+  deleteBacklogItem,
 } from '../db';
-import { Task, TaskCategory, TaskStatus, RecurringTask, Reminder } from '../types';
+import { Task, TaskCategory, TaskStatus, RecurringTask, Reminder, BacklogItem } from '../types';
 import { MorningParseFn } from '../llm/morning';
 import { EveningReconcileFn } from '../llm/evening';
 import { DetectIntentFn, IntentTask } from '../llm/intent';
@@ -37,7 +40,7 @@ const STATUS_ICON: Record<TaskStatus, string> = {
 export const START_MESSAGE =
   'Привет! Я бот для ежедневного планирования задач.\n' +
   'Утром напиши план на день свободным текстом — я его структурирую.\n' +
-  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /recur /remind /edit.\n' +
+  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /recur /remind /backlog /edit.\n' +
   'Вечером спрошу, что реально сделано.';
 
 function renderGroupedTasks(tasks: Task[]): string[] {
@@ -417,4 +420,55 @@ export async function routeFreeText(
     return handleEveningText(userId, date, rawText, reconcileEvening);
   }
   return handleDayActiveText(userId, date, rawText, detectIntent, parseMorningPlan, reconcileEvening);
+}
+
+const BACKLOG_USAGE =
+  'Использование: /backlog add <текст> — добавить в бэклог\n' +
+  '/backlog list — показать бэклог\n' +
+  '/backlog pull <номер> — перенести в план на сегодня\n' +
+  '/backlog remove <номер> — удалить из бэклога';
+
+export async function handleBacklogCommand(userId: number, date: string, argsText: string): Promise<string> {
+  const trimmed = argsText.trim();
+  const [sub, ...rest] = trimmed.split(/\s+/);
+
+  if (sub === 'list') {
+    const items = getBacklogForUser(userId);
+    if (items.length === 0) return 'Бэклог пуст. ' + BACKLOG_USAGE;
+    return items.map((item, i) => `${i + 1}. ${item.text} (${CATEGORY_WORD[item.category]})`).join('\n');
+  }
+
+  if (sub === 'remove') {
+    const index = parseInt(rest[0], 10);
+    const items = getBacklogForUser(userId);
+    if (!index || index < 1 || index > items.length) return `Нет пункта бэклога под номером ${rest[0]}.`;
+    deleteBacklogItem(items[index - 1].id);
+    return `Удалено из бэклога: ${items[index - 1].text}`;
+  }
+
+  if (sub === 'pull') {
+    const index = parseInt(rest[0], 10);
+    const items = getBacklogForUser(userId);
+    if (!index || index < 1 || index > items.length) return `Нет пункта бэклога под номером ${rest[0]}.`;
+    const item = items[index - 1];
+    const [added] = insertIntentTasks(userId, date, [{ text: item.text, category: item.category }]);
+    deleteBacklogItem(item.id);
+    return `Перенесено в план на сегодня (${CATEGORY_WORD[added.category]}): ${added.text}`;
+  }
+
+  if (sub === 'add') {
+    const text = rest.join(' ').trim();
+    if (!text) return BACKLOG_USAGE;
+    const item: BacklogItem = {
+      id: uuidv4(),
+      userId,
+      text,
+      category: await classifyCategory(text),
+      createdAt: new Date().toISOString(),
+    };
+    insertBacklogItem(item);
+    return `Добавлено в бэклог (${CATEGORY_WORD[item.category]}): ${item.text}`;
+  }
+
+  return BACKLOG_USAGE;
 }

@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SCHEMA_SQL } from './schema';
-import { ConversationState, DailyState, Reminder, RecurringTask, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
+import { BacklogItem, ConversationState, DailyState, Reminder, RecurringTask, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
 
 let db: DatabaseSync | null = null;
 
@@ -317,6 +317,44 @@ export function markReminderFired(id: string): void {
 export function deleteReminder(id: string): void {
   const conn = requireDb();
   conn.prepare('DELETE FROM reminders WHERE id = ?').run(id);
+}
+
+interface BacklogItemRow {
+  id: string;
+  user_id: number;
+  text: string;
+  category: TaskCategory;
+  created_at: string;
+}
+
+function rowToBacklogItem(row: BacklogItemRow): BacklogItem {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    text: row.text,
+    category: row.category,
+    createdAt: row.created_at,
+  };
+}
+
+export function insertBacklogItem(item: BacklogItem): void {
+  const conn = requireDb();
+  conn
+    .prepare(`INSERT INTO backlog_items (id, user_id, text, category, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .run(item.id, item.userId, item.text, item.category, item.createdAt);
+}
+
+export function getBacklogForUser(userId: number): BacklogItem[] {
+  const conn = requireDb();
+  const rows = conn
+    .prepare('SELECT * FROM backlog_items WHERE user_id = ? ORDER BY created_at ASC')
+    .all(userId) as unknown as BacklogItemRow[];
+  return rows.map(rowToBacklogItem);
+}
+
+export function deleteBacklogItem(id: string): void {
+  const conn = requireDb();
+  conn.prepare('DELETE FROM backlog_items WHERE id = ?').run(id);
 }
 
 export function getAllConversationStates(): ConversationState[] {

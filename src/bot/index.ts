@@ -15,6 +15,7 @@ import {
   handleTimeCommand,
   handleRecurCommand,
   handleRemindCommand,
+  handleBacklogCommand,
   routeFreeText,
 } from './handlers';
 
@@ -90,6 +91,10 @@ export function createBot(token: string): Telegraf {
 
   bot.command('remind', async (ctx) => {
     await ctx.reply(handleRemindCommand(ctx.from.id, stripCommand(ctx.message.text)));
+  });
+
+  bot.command('backlog', async (ctx) => {
+    await ctx.reply(await handleBacklogCommand(ctx.from.id, todayDate(), stripCommand(ctx.message.text)));
   });
 
   bot.command('edit', async (ctx) => {
