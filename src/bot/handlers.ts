@@ -195,6 +195,17 @@ const CHAT_FALLBACK =
  * vocabulary (add / replan / status updates / reports / queries / plain chat) so
  * ordinary phrasing doesn't dead-end in a "не понял" reply.
  */
+const STATUS_ICON_CHARS = Object.values(STATUS_ICON);
+
+// The bot's own /list and evening-summary output is the only source of these icons —
+// a message containing several of them is almost certainly the user pasting that output
+// back (e.g. forwarding "the current state"), not a real planning instruction. Treating
+// it as replan/add_tasks caused mass duplicate re-insertion of already-tracked tasks.
+function looksLikeBotOutputEcho(text: string): boolean {
+  const count = STATUS_ICON_CHARS.reduce((sum, icon) => sum + text.split(icon).length - 1, 0);
+  return count >= 2;
+}
+
 export async function handleDayActiveText(
   userId: number,
   date: string,
@@ -207,6 +218,11 @@ export async function handleDayActiveText(
   // e.g. "удали X" or "верни X в план" should work even after X is no longer 'planned'.
   // Only 'dropped' (already deleted from the user's perspective) is excluded.
   const visibleTasks = getTasksForDate(userId, date).filter((t) => t.status !== 'dropped');
+
+  if (looksLikeBotOutputEcho(rawText)) {
+    return handleListCommand(userId, date);
+  }
+
   const intent = await detectIntent(
     visibleTasks.map((t) => ({ id: t.id, text: t.text })),
     rawText
@@ -242,8 +258,14 @@ export async function handleDayActiveText(
     }
 
     case 'update_status': {
+      // The LLM occasionally emits the same taskId twice (e.g. one message describing
+      // one task in two different phrasings) — applying both printed a duplicate
+      // confirmation line for a single status change. Keep only the last per taskId.
+      const dedupedUpdates = Array.from(
+        new Map((intent.updates ?? []).map((u) => [u.taskId, u])).values()
+      );
       const applied: string[] = [];
-      for (const update of intent.updates ?? []) {
+      for (const update of dedupedUpdates) {
         const task = visibleTasks.find((t) => t.id === update.taskId);
         if (!task) continue;
         const movedCount = update.status === 'moved' ? task.movedCount + 1 : task.movedCount;
