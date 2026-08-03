@@ -4,6 +4,7 @@ import { getAllConversationStates, getTasksForDate, upsertConversationState } fr
 import { currentHHMM } from '../util/date';
 import { buildEveningPingMessage } from '../bot/handlers';
 import { applyDueRecurringTasks } from '../services/recurringTasks';
+import { sendDueReminders } from '../services/reminders';
 
 /**
  * Every minute, checks whether any user's configured evening check-in time
@@ -37,6 +38,17 @@ export function startRecurringTasksScheduler(bot: Telegraf): void {
       await applyDueRecurringTasks(bot);
     } catch (err) {
       console.error('Failed to apply due recurring tasks:', err);
+    }
+  });
+}
+
+/** Every minute, sends any reminders whose fire time has arrived. */
+export function startReminderScheduler(bot: Telegraf): void {
+  cron.schedule('* * * * *', async () => {
+    try {
+      await sendDueReminders(bot);
+    } catch (err) {
+      console.error('Failed to send due reminders:', err);
     }
   });
 }

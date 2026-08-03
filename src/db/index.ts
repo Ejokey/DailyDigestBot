@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SCHEMA_SQL } from './schema';
-import { ConversationState, DailyState, RecurringTask, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
+import { ConversationState, DailyState, Reminder, RecurringTask, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
 
 let db: DatabaseSync | null = null;
 
@@ -261,6 +261,62 @@ export function getAllRecurringTasks(): RecurringTask[] {
 export function deleteRecurringTask(id: string): void {
   const conn = requireDb();
   conn.prepare('DELETE FROM recurring_tasks WHERE id = ?').run(id);
+}
+
+interface ReminderRow {
+  id: string;
+  user_id: number;
+  text: string;
+  fire_at: string;
+  fired: number;
+  created_at: string;
+}
+
+function rowToReminder(row: ReminderRow): Reminder {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    text: row.text,
+    fireAt: row.fire_at,
+    fired: !!row.fired,
+    createdAt: row.created_at,
+  };
+}
+
+export function insertReminder(reminder: Reminder): void {
+  const conn = requireDb();
+  conn
+    .prepare(
+      `INSERT INTO reminders (id, user_id, text, fire_at, fired, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    )
+    .run(reminder.id, reminder.userId, reminder.text, reminder.fireAt, reminder.fired ? 1 : 0, reminder.createdAt);
+}
+
+export function getPendingRemindersForUser(userId: number): Reminder[] {
+  const conn = requireDb();
+  const rows = conn
+    .prepare('SELECT * FROM reminders WHERE user_id = ? AND fired = 0 ORDER BY fire_at ASC')
+    .all(userId) as unknown as ReminderRow[];
+  return rows.map(rowToReminder);
+}
+
+export function getDueReminders(nowIso: string): Reminder[] {
+  const conn = requireDb();
+  const rows = conn
+    .prepare('SELECT * FROM reminders WHERE fired = 0 AND fire_at <= ? ORDER BY fire_at ASC')
+    .all(nowIso) as unknown as ReminderRow[];
+  return rows.map(rowToReminder);
+}
+
+export function markReminderFired(id: string): void {
+  const conn = requireDb();
+  conn.prepare('UPDATE reminders SET fired = 1 WHERE id = ?').run(id);
+}
+
+export function deleteReminder(id: string): void {
+  const conn = requireDb();
+  conn.prepare('DELETE FROM reminders WHERE id = ?').run(id);
 }
 
 export function getAllConversationStates(): ConversationState[] {

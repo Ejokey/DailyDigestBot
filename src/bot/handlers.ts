@@ -10,8 +10,11 @@ import {
   insertRecurringTask,
   getRecurringTasksForUser,
   deleteRecurringTask,
+  insertReminder,
+  getPendingRemindersForUser,
+  deleteReminder,
 } from '../db';
-import { Task, TaskCategory, TaskStatus, RecurringTask } from '../types';
+import { Task, TaskCategory, TaskStatus, RecurringTask, Reminder } from '../types';
 import { MorningParseFn } from '../llm/morning';
 import { EveningReconcileFn } from '../llm/evening';
 import { DetectIntentFn, IntentTask } from '../llm/intent';
@@ -21,6 +24,7 @@ import { handleEveningInput } from '../services/eveningFlow';
 import { buildWeeklyDigestForUser } from '../services/weeklyDigest';
 import { groupTasksByCategory } from '../services/categoryDisplay';
 import { parseScheduleWord, scheduleLabel } from '../services/recurringTasks';
+import { parseReminderTime } from '../util/date';
 
 const STATUS_ICON: Record<TaskStatus, string> = {
   planned: '⬜',
@@ -33,7 +37,7 @@ const STATUS_ICON: Record<TaskStatus, string> = {
 export const START_MESSAGE =
   'Привет! Я бот для ежедневного планирования задач.\n' +
   'Утром напиши план на день свободным текстом — я его структурирую.\n' +
-  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /recur /edit.\n' +
+  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /recur /remind /edit.\n' +
   'Вечером спрошу, что реально сделано.';
 
 function renderGroupedTasks(tasks: Task[]): string[] {
@@ -181,6 +185,58 @@ export async function handleRecurCommand(userId: number, argsText: string): Prom
   }
 
   return RECUR_USAGE;
+}
+
+const REMIND_USAGE =
+  'Использование: /remind add HH:MM <текст> или /remind add +30m <текст> (можно +2h, +1d)\n' +
+  'Например: /remind add 18:00 позвонить клиенту\n' +
+  '/remind list — показать активные напоминания\n' +
+  '/remind cancel <номер> — отменить';
+
+function formatReminderTime(iso: string): string {
+  const d = new Date(iso);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  return `${d.toISOString().slice(0, 10)} ${hh}:${mm}`;
+}
+
+export function handleRemindCommand(userId: number, argsText: string): string {
+  const trimmed = argsText.trim();
+  const [sub, ...rest] = trimmed.split(/\s+/);
+
+  if (sub === 'list') {
+    const items = getPendingRemindersForUser(userId);
+    if (items.length === 0) return 'Активных напоминаний нет. ' + REMIND_USAGE;
+    return items.map((r, i) => `${i + 1}. [${formatReminderTime(r.fireAt)}] ${r.text}`).join('\n');
+  }
+
+  if (sub === 'cancel') {
+    const index = parseInt(rest[0], 10);
+    const items = getPendingRemindersForUser(userId);
+    if (!index || index < 1 || index > items.length) return `Нет напоминания под номером ${rest[0]}.`;
+    deleteReminder(items[index - 1].id);
+    return `Отменено: ${items[index - 1].text}`;
+  }
+
+  if (sub === 'add') {
+    const timeToken = rest[0];
+    const text = rest.slice(1).join(' ').trim();
+    const fireAt = timeToken ? parseReminderTime(timeToken) : null;
+    if (!fireAt || !text) return REMIND_USAGE;
+
+    const reminder: Reminder = {
+      id: uuidv4(),
+      userId,
+      text,
+      fireAt,
+      fired: false,
+      createdAt: new Date().toISOString(),
+    };
+    insertReminder(reminder);
+    return `Напомню: "${text}" — ${formatReminderTime(fireAt)}`;
+  }
+
+  return REMIND_USAGE;
 }
 
 export function handleWeekCommand(userId: number, date: string): string {
