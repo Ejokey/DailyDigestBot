@@ -82,12 +82,14 @@ export function buildEveningPingMessage(tasks: Task[]): string {
 }
 
 export async function handleAddCommand(userId: number, date: string, text: string): Promise<string> {
-  const category = await classifyCategory(text);
+  const trimmed = text.trim();
+  if (!trimmed) return 'Использование: /add <текст задачи>';
+  const category = await classifyCategory(trimmed);
   const now = new Date().toISOString();
   const task: Task = {
     id: uuidv4(),
     userId,
-    text,
+    text: trimmed,
     status: 'planned',
     createdAt: now,
     updatedAt: now,
@@ -97,7 +99,7 @@ export async function handleAddCommand(userId: number, date: string, text: strin
     category,
   };
   insertTask(task);
-  return `Добавлено (${category === 'work' ? 'работа' : category === 'personal' ? 'личное' : 'прочее'}): ${text}`;
+  return `Добавлено (${category === 'work' ? 'работа' : category === 'personal' ? 'личное' : 'прочее'}): ${trimmed}`;
 }
 
 function getTaskByIndex(userId: number, date: string, index: number): Task | null {
@@ -281,23 +283,25 @@ const STATUS_WORD: Record<TaskStatus, string> = {
 };
 
 function insertIntentTasks(userId: number, date: string, items: IntentTask[]): Task[] {
-  return items.map((item) => {
-    const now = new Date().toISOString();
-    const task: Task = {
-      id: uuidv4(),
-      userId,
-      text: item.text,
-      status: 'planned',
-      createdAt: now,
-      updatedAt: now,
-      date,
-      movedCount: 0,
-      source: 'added_during_day',
-      category: item.category,
-    };
-    insertTask(task);
-    return task;
-  });
+  return items
+    .filter((item) => item.text.trim().length > 0)
+    .map((item) => {
+      const now = new Date().toISOString();
+      const task: Task = {
+        id: uuidv4(),
+        userId,
+        text: item.text.trim(),
+        status: 'planned',
+        createdAt: now,
+        updatedAt: now,
+        date,
+        movedCount: 0,
+        source: 'added_during_day',
+        category: item.category,
+      };
+      insertTask(task);
+      return task;
+    });
 }
 
 const CHAT_FALLBACK =
@@ -364,6 +368,9 @@ export async function handleDayActiveText(
         ? intent.tasks
         : [{ text: rawText.trim(), category: await classifyCategory(rawText) }];
       const added = insertIntentTasks(userId, date, items);
+      if (added.length === 0) {
+        return 'Не понял, что добавить. Опиши задачу текстом.';
+      }
       if (added.length === 1) {
         return `Добавлено (${CATEGORY_WORD[added[0].category]}): ${added[0].text}`;
       }
