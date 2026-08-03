@@ -71,6 +71,11 @@ export function handleListCommand(userId: number, date: string): string {
   return formatTaskList(getVisibleTasks(userId, date));
 }
 
+/** Same tasks /list renders — exposed so the bot layer can build per-task inline buttons. */
+export function getTasksForListView(userId: number, date: string): Task[] {
+  return getVisibleTasks(userId, date);
+}
+
 export function buildEveningPingMessage(tasks: Task[]): string {
   const lines = [
     'Вечерний чек-ин! Вот твой план на сегодня:',
@@ -126,6 +131,19 @@ export function handleDropCommand(userId: number, date: string, index: number): 
   if (!task) return `Задача №${index} не найдена.`;
   updateTask(task.id, { status: 'dropped' });
   return `❌ Убрано: ${task.text}`;
+}
+
+/**
+ * Used by inline keyboard button taps (/list), which reference a task by id
+ * rather than by its position — positions shift as other tasks change status,
+ * so an id-based lookup avoids acting on the wrong task after a stale tap.
+ */
+export function handleTaskActionById(userId: number, date: string, taskId: string, action: 'done' | 'moved' | 'dropped'): string {
+  const task = getVisibleTasks(userId, date).find((t) => t.id === taskId);
+  if (!task) return 'Задача не найдена (возможно, уже изменена).';
+  const movedCount = action === 'moved' ? task.movedCount + 1 : task.movedCount;
+  updateTask(task.id, { status: action, movedCount });
+  return `${STATUS_ICON[action]} ${task.text} — ${STATUS_WORD[action]}`;
 }
 
 export function handleTimeCommand(userId: number, date: string, hhmm: string): string {
