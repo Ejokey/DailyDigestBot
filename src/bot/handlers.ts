@@ -27,7 +27,7 @@ import { handleEveningInput } from '../services/eveningFlow';
 import { buildWeeklyDigestForUser } from '../services/weeklyDigest';
 import { groupTasksByCategory } from '../services/categoryDisplay';
 import { parseScheduleWord, scheduleLabel } from '../services/recurringTasks';
-import { parseReminderTime } from '../util/date';
+import { parseReminderTime, formatMskDateTime } from '../util/date';
 
 const STATUS_ICON: Record<TaskStatus, string> = {
   planned: '⬜',
@@ -221,13 +221,6 @@ const REMIND_USAGE =
   '/remind list — показать активные напоминания\n' +
   '/remind cancel <номер> — отменить';
 
-function formatReminderTime(iso: string): string {
-  const d = new Date(iso);
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mm = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${d.toISOString().slice(0, 10)} ${hh}:${mm}`;
-}
-
 export function handleRemindCommand(userId: number, argsText: string): string {
   const trimmed = argsText.trim();
   const [sub, ...rest] = trimmed.split(/\s+/);
@@ -235,7 +228,7 @@ export function handleRemindCommand(userId: number, argsText: string): string {
   if (sub === 'list') {
     const items = getPendingRemindersForUser(userId);
     if (items.length === 0) return 'Активных напоминаний нет. ' + REMIND_USAGE;
-    return items.map((r, i) => `${i + 1}. [${formatReminderTime(r.fireAt)}] ${r.text}`).join('\n');
+    return items.map((r, i) => `${i + 1}. [${formatMskDateTime(r.fireAt)}] ${r.text}`).join('\n');
   }
 
   if (sub === 'cancel') {
@@ -261,7 +254,7 @@ export function handleRemindCommand(userId: number, argsText: string): string {
       createdAt: new Date().toISOString(),
     };
     insertReminder(reminder);
-    return `Напомню: "${text}" — ${formatReminderTime(fireAt)}`;
+    return `Напомню: "${text}" — ${formatMskDateTime(fireAt)}`;
   }
 
   return REMIND_USAGE;
@@ -430,7 +423,7 @@ export async function handleDayActiveText(
       }
       const reminder: Reminder = { id: uuidv4(), userId, text, fireAt, fired: false, createdAt: new Date().toISOString() };
       insertReminder(reminder);
-      return `Напомню: "${text}" — ${formatReminderTime(fireAt)}`;
+      return `Напомню: "${text}" — ${formatMskDateTime(fireAt)}`;
     }
 
     case 'set_recurring': {
