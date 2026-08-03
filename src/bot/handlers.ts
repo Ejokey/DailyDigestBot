@@ -399,6 +399,48 @@ export async function handleDayActiveText(
       return applied.join('\n');
     }
 
+    case 'set_reminder': {
+      const text = intent.reminderText?.trim();
+      const fireAt = intent.reminderTime ? parseReminderTime(intent.reminderTime) : null;
+      if (!text || !fireAt) {
+        return 'Не понял, когда и о чём напомнить. Можно так: /remind add 18:00 позвонить клиенту';
+      }
+      const reminder: Reminder = { id: uuidv4(), userId, text, fireAt, fired: false, createdAt: new Date().toISOString() };
+      insertReminder(reminder);
+      return `Напомню: "${text}" — ${formatReminderTime(fireAt)}`;
+    }
+
+    case 'set_recurring': {
+      const text = intent.recurringText?.trim();
+      const schedule = intent.recurringSchedule ? parseScheduleWord(intent.recurringSchedule) : null;
+      const time = intent.recurringTime;
+      const validTime = time && /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+      if (!text || !schedule || !validTime) {
+        return 'Не понял расписание. Можно так: /recur add 09:00 daily текст';
+      }
+      const recurringTask: RecurringTask = {
+        id: uuidv4(),
+        userId,
+        text,
+        category: await classifyCategory(text),
+        schedule,
+        time,
+        createdAt: new Date().toISOString(),
+      };
+      insertRecurringTask(recurringTask);
+      return `Добавлено в расписание: "${text}" (${time}, ${scheduleLabel(schedule)})`;
+    }
+
+    case 'add_backlog': {
+      const text = intent.backlogText?.trim();
+      if (!text) {
+        return 'Не понял, что добавить в бэклог. Можно так: /backlog add текст';
+      }
+      const item: BacklogItem = { id: uuidv4(), userId, text, category: await classifyCategory(text), createdAt: new Date().toISOString() };
+      insertBacklogItem(item);
+      return `Добавлено в бэклог (${CATEGORY_WORD[item.category]}): ${item.text}`;
+    }
+
     case 'chat':
     default:
       return intent.reply?.trim() || CHAT_FALLBACK;

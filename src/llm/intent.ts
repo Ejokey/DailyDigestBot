@@ -9,6 +9,9 @@ export type IntentType =
   | 'evening_report'
   | 'show_list'
   | 'show_week'
+  | 'set_reminder'
+  | 'set_recurring'
+  | 'add_backlog'
   | 'chat';
 
 export interface IntentTaskRef {
@@ -31,6 +34,12 @@ export interface IntentResult {
   tasks?: IntentTask[];
   updates?: IntentUpdate[];
   reply?: string;
+  reminderText?: string;
+  reminderTime?: string;
+  recurringText?: string;
+  recurringTime?: string;
+  recurringSchedule?: string;
+  backlogText?: string;
 }
 
 export type DetectIntentFn = (currentTasks: IntentTaskRef[], message: string) => Promise<IntentResult>;
@@ -42,8 +51,15 @@ const VALID_TYPES: IntentType[] = [
   'evening_report',
   'show_list',
   'show_week',
+  'set_reminder',
+  'set_recurring',
+  'add_backlog',
   'chat',
 ];
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
 const VALID_CATEGORIES: TaskCategory[] = ['work', 'personal', 'other'];
 const VALID_STATUSES: TaskStatus[] = ['planned', 'done', 'partial', 'moved', 'dropped'];
 
@@ -87,6 +103,12 @@ export async function detectIntent(currentTasks: IntentTaskRef[], message: strin
     type: type as IntentType,
     tasks: normalizeTasks(parsed.tasks),
     updates: normalizeUpdates(parsed.updates),
-    reply: typeof parsed.reply === 'string' ? parsed.reply : undefined,
+    reply: str(parsed.reply),
+    reminderText: str(parsed.reminderText),
+    reminderTime: str(parsed.reminderTime),
+    recurringText: str(parsed.recurringText),
+    recurringTime: str(parsed.recurringTime),
+    recurringSchedule: str(parsed.recurringSchedule),
+    backlogText: str(parsed.backlogText),
   };
 }
