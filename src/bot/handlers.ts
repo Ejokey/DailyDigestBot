@@ -138,6 +138,19 @@ export function handleDropCommand(userId: number, date: string, index: number): 
   return `❌ Убрано: ${task.text}`;
 }
 
+export function handleEditCommand(userId: number, date: string, argsText: string): string {
+  const match = argsText.trim().match(/^(\d+)\s+([\s\S]+)$/);
+  if (!match) {
+    return 'Использование: /edit <номер> <новый текст>\nИли просто напиши, что изменить (например: "переименуй ревью ТЗ в финальное ревью ТЗ") — я разберу и применю.';
+  }
+  const index = parseInt(match[1], 10);
+  const newText = match[2].trim();
+  const task = getTaskByIndex(userId, date, index);
+  if (!task) return `Задача №${index} не найдена.`;
+  updateTask(task.id, { text: newText });
+  return `✏️ ${task.text} → ${newText}`;
+}
+
 /**
  * Used by inline keyboard button taps (/list), which reference a task by id
  * rather than by its position — positions shift as other tasks change status,
@@ -411,6 +424,25 @@ export async function handleDayActiveText(
       }
       if (applied.length === 0) {
         return 'Не понял, о какой задаче речь. Посмотреть текущие — /list.';
+      }
+      return applied.join('\n');
+    }
+
+    case 'edit_task': {
+      const dedupedEdits = Array.from(
+        new Map((intent.edits ?? []).map((e) => [e.taskId, e])).values()
+      );
+      const applied: string[] = [];
+      for (const edit of dedupedEdits) {
+        const task = visibleTasks.find((t) => t.id === edit.taskId);
+        if (!task) continue;
+        const newText = edit.newText.trim();
+        if (!newText) continue;
+        updateTask(task.id, { text: newText });
+        applied.push(`✏️ ${task.text} → ${newText}`);
+      }
+      if (applied.length === 0) {
+        return 'Не понял, какую задачу и на что переименовать. Посмотреть текущие — /list.';
       }
       return applied.join('\n');
     }

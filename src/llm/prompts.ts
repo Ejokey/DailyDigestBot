@@ -61,6 +61,7 @@ export const INTENT_INSTRUCTIONS = `Пользователь уже в проц�
   "moved" — переносит на завтра, не успел (но задача остаётся актуальной)
   "dropped" — УДАЛИ/УБЕРИ/ОТМЕНИ/не актуально/не нужно/удали из списка — ЛЮБАЯ просьба удалить, убрать или отменить задачу означает статус "dropped", это НЕ "done", даже если формулировка короткая типа "удали X"
   Если пользователь просит удалить/показать всё разом ("удали всё", "очисти список", "весь список сделан") — включи в updates ВСЕ id из currentTasks с нужным статусом.
+- "edit_task" — пользователь хочет ПЕРЕИМЕНОВАТЬ/изменить формулировку существующей задачи, не меняя её статус. Триггеры: "переименуй X в Y", "замени формулировку A на B", "у задачи ... поменяй текст на ...", а также конструкция "Добавь Y вместо X" / "вместо X теперь Y" — это НЕ добавление новой задачи, это переименование существующей X в Y. Для каждой правки укажи taskId существующей задачи (найди по currentTasks) и newText — новую формулировку.
 - "evening_report" — пользователь подводит итог дня целиком (рассказывает, что успел и что нет по многим задачам сразу).
 - "show_list" — просит показать текущий список задач.
 - "show_week" — просит недельную статистику/итоги.
@@ -81,9 +82,10 @@ export const INTENT_INSTRUCTIONS = `Пользователь уже в проц�
 
 Верни ТОЛЬКО валидный JSON без markdown-обёртки, в формате:
 {
-  "type": "add_tasks" | "replan" | "update_status" | "evening_report" | "show_list" | "show_week" | "set_reminder" | "set_recurring" | "add_backlog" | "chat",
+  "type": "add_tasks" | "replan" | "update_status" | "edit_task" | "evening_report" | "show_list" | "show_week" | "set_reminder" | "set_recurring" | "add_backlog" | "chat",
   "tasks": [{"text": "...", "category": "work"|"personal"|"other"}],
   "updates": [{"taskId": "...", "status": "done"|"partial"|"moved"|"dropped"}],
+  "edits": [{"taskId": "...", "newText": "..."}],
   "reply": "текст ответа, если type = chat",
   "reminderText": "...", "reminderTime": "HH:MM или +Nm/+Nh/+Nd",
   "recurringText": "...", "recurringTime": "HH:MM", "recurringSchedule": "daily или день недели",

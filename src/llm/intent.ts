@@ -6,6 +6,7 @@ export type IntentType =
   | 'add_tasks'
   | 'replan'
   | 'update_status'
+  | 'edit_task'
   | 'evening_report'
   | 'show_list'
   | 'show_week'
@@ -29,10 +30,16 @@ export interface IntentUpdate {
   status: TaskStatus;
 }
 
+export interface IntentEdit {
+  taskId: string;
+  newText: string;
+}
+
 export interface IntentResult {
   type: IntentType;
   tasks?: IntentTask[];
   updates?: IntentUpdate[];
+  edits?: IntentEdit[];
   reply?: string;
   reminderText?: string;
   reminderTime?: string;
@@ -48,6 +55,7 @@ const VALID_TYPES: IntentType[] = [
   'add_tasks',
   'replan',
   'update_status',
+  'edit_task',
   'evening_report',
   'show_list',
   'show_week',
@@ -85,6 +93,20 @@ function normalizeUpdates(value: unknown): IntentUpdate[] {
   );
 }
 
+function normalizeEdits(value: unknown): IntentEdit[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (e): e is { taskId: string; newText: string } =>
+        typeof e === 'object' &&
+        e !== null &&
+        typeof (e as { taskId?: unknown }).taskId === 'string' &&
+        typeof (e as { newText?: unknown }).newText === 'string'
+    )
+    .map((e) => ({ taskId: e.taskId, newText: e.newText.trim() }))
+    .filter((e) => e.newText.length > 0);
+}
+
 export async function detectIntent(currentTasks: IntentTaskRef[], message: string): Promise<IntentResult> {
   const complete = getLlmComplete();
   const userPayload = JSON.stringify({ currentTasks, message });
@@ -103,6 +125,7 @@ export async function detectIntent(currentTasks: IntentTaskRef[], message: strin
     type: type as IntentType,
     tasks: normalizeTasks(parsed.tasks),
     updates: normalizeUpdates(parsed.updates),
+    edits: normalizeEdits(parsed.edits),
     reply: str(parsed.reply),
     reminderText: str(parsed.reminderText),
     reminderTime: str(parsed.reminderTime),

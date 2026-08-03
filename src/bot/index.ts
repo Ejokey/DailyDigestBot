@@ -11,6 +11,7 @@ import {
   handleDoneCommand,
   handleMoveCommand,
   handleDropCommand,
+  handleEditCommand,
   handleListCommand,
   handleWeekCommand,
   handleTimeCommand,
@@ -144,9 +145,7 @@ export function createBot(token: string): Telegraf {
   });
 
   bot.command('edit', async (ctx) => {
-    await ctx.reply(
-      'Просто напиши, что изменить (например: "убери правки по CRM" или "добавь ревью ТЗ") — я разберу и применю.'
-    );
+    await ctx.reply(handleEditCommand(ctx.from.id, todayDate(), stripCommand(ctx.message.text)));
   });
 
   bot.command('plan', async (ctx) => {
