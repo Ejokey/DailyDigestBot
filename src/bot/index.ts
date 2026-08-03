@@ -13,6 +13,7 @@ import {
   handleListCommand,
   handleWeekCommand,
   handleTimeCommand,
+  handleRecurCommand,
   routeFreeText,
 } from './handlers';
 
@@ -80,6 +81,10 @@ export function createBot(token: string): Telegraf {
   bot.command('time', async (ctx) => {
     const hhmm = stripCommand(ctx.message.text);
     await ctx.reply(handleTimeCommand(ctx.from.id, todayDate(), hhmm));
+  });
+
+  bot.command('recur', async (ctx) => {
+    await ctx.reply(await handleRecurCommand(ctx.from.id, stripCommand(ctx.message.text)));
   });
 
   bot.command('edit', async (ctx) => {

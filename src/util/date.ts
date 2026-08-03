@@ -8,3 +8,7 @@ export function currentHHMM(): string {
   const mm = String(now.getUTCMinutes()).padStart(2, '0');
   return `${hh}:${mm}`;
 }
+
+export function currentWeekday(): number {
+  return new Date().getUTCDay();
+}

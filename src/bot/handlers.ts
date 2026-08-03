@@ -7,8 +7,11 @@ import {
   upsertConversationState,
   getDailyState,
   deleteOpenPlanForDate,
+  insertRecurringTask,
+  getRecurringTasksForUser,
+  deleteRecurringTask,
 } from '../db';
-import { Task, TaskCategory, TaskStatus } from '../types';
+import { Task, TaskCategory, TaskStatus, RecurringTask } from '../types';
 import { MorningParseFn } from '../llm/morning';
 import { EveningReconcileFn } from '../llm/evening';
 import { DetectIntentFn, IntentTask } from '../llm/intent';
@@ -17,6 +20,7 @@ import { handleMorningInput } from '../services/morningFlow';
 import { handleEveningInput } from '../services/eveningFlow';
 import { buildWeeklyDigestForUser } from '../services/weeklyDigest';
 import { groupTasksByCategory } from '../services/categoryDisplay';
+import { parseScheduleWord, scheduleLabel } from '../services/recurringTasks';
 
 const STATUS_ICON: Record<TaskStatus, string> = {
   planned: '⬜',
@@ -29,7 +33,7 @@ const STATUS_ICON: Record<TaskStatus, string> = {
 export const START_MESSAGE =
   'Привет! Я бот для ежедневного планирования задач.\n' +
   'Утром напиши план на день свободным текстом — я его структурирую.\n' +
-  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /edit.\n' +
+  'В течение дня можешь писать обновления или использовать команды: /add /done /move /drop /list /week /time /recur /edit.\n' +
   'Вечером спрошу, что реально сделано.';
 
 function renderGroupedTasks(tasks: Task[]): string[] {
@@ -126,6 +130,57 @@ export function handleTimeCommand(userId: number, date: string, hhmm: string): s
     eveningCheckinTime: hhmm,
   });
   return `Время вечернего чек-ина установлено: ${hhmm}`;
+}
+
+const RECUR_USAGE =
+  'Использование: /recur add HH:MM daily|<день недели> <текст>\n' +
+  'Например: /recur add 09:00 daily Проверить почту\n' +
+  'Или: /recur add 18:00 понедельник Еженедельный отчёт\n' +
+  '/recur list — показать список\n' +
+  '/recur remove <номер> — удалить';
+
+export async function handleRecurCommand(userId: number, argsText: string): Promise<string> {
+  const trimmed = argsText.trim();
+  const [sub, ...rest] = trimmed.split(/\s+/);
+
+  if (sub === 'list') {
+    const items = getRecurringTasksForUser(userId);
+    if (items.length === 0) return 'Повторяющихся задач пока нет. ' + RECUR_USAGE;
+    return items
+      .map((rt, i) => `${i + 1}. [${rt.time}, ${scheduleLabel(rt.schedule)}] ${rt.text}`)
+      .join('\n');
+  }
+
+  if (sub === 'remove') {
+    const index = parseInt(rest[0], 10);
+    const items = getRecurringTasksForUser(userId);
+    if (!index || index < 1 || index > items.length) return `Нет повторяющейся задачи под номером ${rest[0]}.`;
+    deleteRecurringTask(items[index - 1].id);
+    return `Удалено: ${items[index - 1].text}`;
+  }
+
+  if (sub === 'add') {
+    const timeMatch = rest[0];
+    const scheduleWord = rest[1];
+    const text = rest.slice(2).join(' ').trim();
+    const validTime = timeMatch && /^([01]\d|2[0-3]):[0-5]\d$/.test(timeMatch);
+    const schedule = scheduleWord ? parseScheduleWord(scheduleWord) : null;
+    if (!validTime || !schedule || !text) return RECUR_USAGE;
+
+    const recurringTask: RecurringTask = {
+      id: uuidv4(),
+      userId,
+      text,
+      category: await classifyCategory(text),
+      schedule,
+      time: timeMatch,
+      createdAt: new Date().toISOString(),
+    };
+    insertRecurringTask(recurringTask);
+    return `Добавлено в расписание: "${text}" (${timeMatch}, ${scheduleLabel(schedule)})`;
+  }
+
+  return RECUR_USAGE;
 }
 
 export function handleWeekCommand(userId: number, date: string): string {

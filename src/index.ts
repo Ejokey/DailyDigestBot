@@ -2,7 +2,7 @@ import 'dotenv/config';
 import * as path from 'node:path';
 import { openDb } from './db';
 import { createBot } from './bot';
-import { startEveningScheduler } from './scheduler';
+import { startEveningScheduler, startRecurringTasksScheduler } from './scheduler';
 
 function main(): void {
   const dbPath = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'bot.sqlite');
@@ -20,6 +20,7 @@ function main(): void {
 
   const bot = createBot(token);
   startEveningScheduler(bot);
+  startRecurringTasksScheduler(bot);
   bot.launch();
   console.log('daily-digest-bot: bot launched');
 

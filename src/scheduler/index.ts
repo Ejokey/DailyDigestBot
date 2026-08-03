@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import { getAllConversationStates, getTasksForDate, upsertConversationState } from '../db';
 import { currentHHMM } from '../util/date';
 import { buildEveningPingMessage } from '../bot/handlers';
+import { applyDueRecurringTasks } from '../services/recurringTasks';
 
 /**
  * Every minute, checks whether any user's configured evening check-in time
@@ -25,6 +26,17 @@ export function startEveningScheduler(bot: Telegraf): void {
       } catch (err) {
         console.error(`Failed to send evening check-in to user ${state.userId}:`, err);
       }
+    }
+  });
+}
+
+/** Every minute, inserts any due recurring tasks into their owner's plan for today. */
+export function startRecurringTasksScheduler(bot: Telegraf): void {
+  cron.schedule('* * * * *', async () => {
+    try {
+      await applyDueRecurringTasks(bot);
+    } catch (err) {
+      console.error('Failed to apply due recurring tasks:', err);
     }
   });
 }

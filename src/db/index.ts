@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { SCHEMA_SQL } from './schema';
-import { ConversationState, DailyState, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
+import { ConversationState, DailyState, RecurringTask, Task, TaskCategory, TaskSource, TaskStatus } from '../types';
 
 let db: DatabaseSync | null = null;
 
@@ -210,6 +210,57 @@ export function getConversationState(userId: number): ConversationState | null {
     phase: row.phase as ConversationState['phase'],
     eveningCheckinTime: row.evening_checkin_time,
   };
+}
+
+interface RecurringTaskRow {
+  id: string;
+  user_id: number;
+  text: string;
+  category: TaskCategory;
+  schedule: string;
+  time: string;
+  created_at: string;
+}
+
+function rowToRecurringTask(row: RecurringTaskRow): RecurringTask {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    text: row.text,
+    category: row.category,
+    schedule: row.schedule,
+    time: row.time,
+    createdAt: row.created_at,
+  };
+}
+
+export function insertRecurringTask(task: RecurringTask): void {
+  const conn = requireDb();
+  conn
+    .prepare(
+      `INSERT INTO recurring_tasks (id, user_id, text, category, schedule, time, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(task.id, task.userId, task.text, task.category, task.schedule, task.time, task.createdAt);
+}
+
+export function getRecurringTasksForUser(userId: number): RecurringTask[] {
+  const conn = requireDb();
+  const rows = conn
+    .prepare('SELECT * FROM recurring_tasks WHERE user_id = ? ORDER BY created_at ASC')
+    .all(userId) as unknown as RecurringTaskRow[];
+  return rows.map(rowToRecurringTask);
+}
+
+export function getAllRecurringTasks(): RecurringTask[] {
+  const conn = requireDb();
+  const rows = conn.prepare('SELECT * FROM recurring_tasks').all() as unknown as RecurringTaskRow[];
+  return rows.map(rowToRecurringTask);
+}
+
+export function deleteRecurringTask(id: string): void {
+  const conn = requireDb();
+  conn.prepare('DELETE FROM recurring_tasks WHERE id = ?').run(id);
 }
 
 export function getAllConversationStates(): ConversationState[] {
