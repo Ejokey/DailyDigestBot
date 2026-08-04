@@ -341,6 +341,19 @@ function insertIntentTasks(userId: number, date: string, items: IntentTask[]): T
     });
 }
 
+async function addTasksFlow(userId: number, date: string, tasks: IntentTask[] | undefined, rawText: string): Promise<string> {
+  const items = tasks?.length ? tasks : [{ text: rawText.trim(), category: await classifyCategory(rawText) }];
+  const added = insertIntentTasks(userId, date, items);
+  if (added.length === 0) {
+    return 'Не понял, что добавить. Опиши задачу текстом.';
+  }
+  if (added.length === 1) {
+    return `Добавлено (${CATEGORY_WORD[added[0].category]}): ${added[0].text}`;
+  }
+  const lines = added.map((t) => `+ ${t.text} (${CATEGORY_WORD[t.category]})`);
+  return `Добавлено задач: ${added.length}\n${lines.join('\n')}`;
+}
+
 const CHAT_FALLBACK =
   'Могу принять план на день, добавить задачи, отметить прогресс и показать итоги. ' +
   'Напиши, что нужно, или используй /list, /add, /done, /move, /drop, /week.';
@@ -361,6 +374,41 @@ function looksLikeBotOutputEcho(text: string): boolean {
   return count >= 2;
 }
 
+const BACKLOG_TRIGGER = /\bв\s+(бэклог|бэклоге|backlog)\b\s*:?\s*/i;
+const BACKLOG_LEADING_VERB = /^(добавь|добавить|занеси|закинь|помести|запиши)\s+/i;
+
+/**
+ * "в бэклог"/"in backlog" is an unambiguous destination marker — detecting it
+ * ourselves and skipping the LLM classifier entirely avoids relying on the
+ * model to pick "add_backlog" over "replan"/"add_tasks" for every phrasing.
+ * This matters more than it might seem: a message the LLM tags "replan" wipes
+ * today's open plan (see the 'replan' case below), so a misclassified backlog
+ * request could silently delete real tasks — this happened in production with
+ * "Добавь в бэклог X, чтобы Y" (the comma+"чтобы" clause got read as a full
+ * new day plan). Returns the extracted task text, or null if no trigger found.
+ */
+function extractBacklogAddText(rawText: string): string | null {
+  const match = rawText.match(BACKLOG_TRIGGER);
+  if (!match || match.index === undefined) return null;
+  const after = rawText.slice(match.index + match[0].length).trim();
+  if (after.length > 0) return after;
+  const before = rawText.slice(0, match.index).trim().replace(BACKLOG_LEADING_VERB, '').trim();
+  return before.length > 0 ? before : null;
+}
+
+/**
+ * A guard against the LLM classifying an ordinary single-sentence message as
+ * "replan" — replan deletes today's open plan and reparses the message as a
+ * brand new day, so a false positive is destructive, not just wrong. Real
+ * replans are multi-item: multiple lines, several comma-separated items, or
+ * explicit category headers.
+ */
+function looksLikeMultiItemPlan(text: string): boolean {
+  if (/\n/.test(text.trim())) return true;
+  if (/(по работе|работа:|рабочее:|по личным|личное:|личные:)/i.test(text)) return true;
+  return (text.match(/,/g) ?? []).length >= 2;
+}
+
 export async function handleDayActiveText(
   userId: number,
   date: string,
@@ -376,6 +424,19 @@ export async function handleDayActiveText(
 
   if (looksLikeBotOutputEcho(rawText)) {
     return handleListCommand(userId, date);
+  }
+
+  const backlogText = extractBacklogAddText(rawText);
+  if (backlogText) {
+    const item: BacklogItem = {
+      id: uuidv4(),
+      userId,
+      text: backlogText,
+      category: await classifyCategory(backlogText),
+      createdAt: new Date().toISOString(),
+    };
+    insertBacklogItem(item);
+    return `Добавлено в бэклог (${CATEGORY_WORD[item.category]}): ${item.text}`;
   }
 
   const intent = await detectIntent(
@@ -394,26 +455,20 @@ export async function handleDayActiveText(
       return handleEveningText(userId, date, rawText, reconcileEvening);
 
     case 'replan': {
+      if (!looksLikeMultiItemPlan(rawText)) {
+        // A single short sentence tagged "replan" is more likely a misclassified
+        // add/status/backlog request than an actual new day plan — fall through
+        // to add_tasks instead of wiping today's open plan on a guess.
+        return addTasksFlow(userId, date, intent.tasks, rawText);
+      }
       const removed = deleteOpenPlanForDate(userId, date);
       const result = await handleMorningInput(userId, date, rawText, parseMorningPlan, []);
       const prefix = removed > 0 ? `Обновил план (заменил ${removed}).\n\n` : '';
       return prefix + result.message;
     }
 
-    case 'add_tasks': {
-      const items = intent.tasks?.length
-        ? intent.tasks
-        : [{ text: rawText.trim(), category: await classifyCategory(rawText) }];
-      const added = insertIntentTasks(userId, date, items);
-      if (added.length === 0) {
-        return 'Не понял, что добавить. Опиши задачу текстом.';
-      }
-      if (added.length === 1) {
-        return `Добавлено (${CATEGORY_WORD[added[0].category]}): ${added[0].text}`;
-      }
-      const lines = added.map((t) => `+ ${t.text} (${CATEGORY_WORD[t.category]})`);
-      return `Добавлено задач: ${added.length}\n${lines.join('\n')}`;
-    }
+    case 'add_tasks':
+      return addTasksFlow(userId, date, intent.tasks, rawText);
 
     case 'update_status': {
       // The LLM occasionally emits the same taskId twice (e.g. one message describing
