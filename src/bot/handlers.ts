@@ -23,6 +23,7 @@ import { EveningReconcileFn } from '../llm/evening';
 import { DetectIntentFn, IntentTask } from '../llm/intent';
 import { classifyCategory } from '../llm/category';
 import { handleMorningInput } from '../services/morningFlow';
+import { ensureCarriedOverForToday } from '../services/carryOver';
 import { handleEveningInput } from '../services/eveningFlow';
 import { buildWeeklyDigestForUser } from '../services/weeklyDigest';
 import { groupTasksByCategory } from '../services/categoryDisplay';
@@ -62,8 +63,15 @@ export function formatTaskList(tasks: Task[]): string {
   return ['План на сегодня:', ...renderGroupedTasks(tasks)].join('\n');
 }
 
-/** Dropped tasks are excluded — from the user's perspective, "dropped" means "deleted". */
+/**
+ * Dropped tasks are excluded — from the user's perspective, "dropped" means "deleted".
+ * Also materializes yesterday's carry-over first: previously, checking /list before
+ * ever sending a morning message queried an empty date bucket directly and showed
+ * "На сегодня задач нет" even though carried-over tasks existed and were just waiting
+ * on the morning-text flow to pull them in.
+ */
 function getVisibleTasks(userId: number, date: string): Task[] {
+  ensureCarriedOverForToday(userId, date);
   return getTasksForDate(userId, date).filter((t) => t.status !== 'dropped');
 }
 

@@ -40,7 +40,11 @@ export async function handleMorningInput(
   parseMorningPlan: MorningParseFn,
   carriedOverItems?: CarriedOverItem[]
 ): Promise<MorningFlowResult> {
-  const carryItems = carriedOverItems ?? toCarriedOverItems(getCarriedOverTasks(userId, date));
+  // If /list already materialized carry-over for today (ensureCarriedOverForToday),
+  // don't pull it in again here — checking for existing 'carried_over' rows keeps
+  // this idempotent regardless of which entry point ran first.
+  const alreadyCarried = getTasksForDate(userId, date).some((t) => t.source === 'carried_over');
+  const carryItems = carriedOverItems ?? (alreadyCarried ? [] : toCarriedOverItems(getCarriedOverTasks(userId, date)));
   const parsedItems: ParsedMorningTask[] = await parseMorningPlan(rawText);
   const allItems: { text: string; category: TaskCategory }[] = [...carryItems, ...parsedItems];
 
